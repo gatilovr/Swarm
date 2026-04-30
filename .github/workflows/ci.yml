@@ -1,0 +1,150 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        module: [swarm, swarm-mcp, swarm-scale]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff
+          if [ -f ${{ matrix.module }}/requirements.txt ]; then
+            pip install -r ${{ matrix.module }}/requirements.txt
+          fi
+
+      - name: Lint with ruff
+        run: ruff check ${{ matrix.module }}/src/
+
+  test:
+    runs-on: ubuntu-latest
+    needs: lint
+    strategy:
+      matrix:
+        module: [swarm, swarm-mcp, swarm-scale]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install swarm (core dependency)
+        run: |
+          cd swarm
+          pip install -e .
+          cd ..
+
+      - name: Install ${{ matrix.module }}
+        run: |
+          cd ${{ matrix.module }}
+          pip install -r requirements.txt
+          pip install -e .
+          cd ..
+
+      - name: Test swarm core
+        if: matrix.module == 'swarm'
+        run: |
+          pip install -e ./swarm
+          python -m pytest swarm/tests/ -v --tb=short
+
+      - name: Test tracing (no OTLP endpoint required)
+        if: matrix.module == 'swarm'
+        run: |
+          python -m pytest swarm/tests/test_tracing.py -v --tb=short
+
+      - name: Run tests
+        run: |
+          cd ${{ matrix.module }}
+          python -m pytest tests/ -v --tb=short
+
+  import-check:
+    runs-on: ubuntu-latest
+    needs: lint
+    strategy:
+      matrix:
+        module: [swarm, swarm-mcp, swarm-scale]
+        include:
+          - module: swarm
+            package: swarm
+          - module: swarm-mcp
+            package: swarm_mcp
+          - module: swarm-scale
+            package: swarm_scale
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install swarm (core dependency)
+        run: |
+          cd swarm
+          pip install -e .
+          cd ..
+
+      - name: Install ${{ matrix.module }}
+        run: |
+          cd ${{ matrix.module }}
+          pip install -r requirements.txt
+          pip install -e .
+          cd ..
+
+      - name: Check imports
+        run: python -c "import ${{ matrix.package }}; print(f'✅ { ${{ matrix.package }}.__name__ } v{ ${{ matrix.package }}.__version__ }')"
+
+  gitleaks:
+    name: Secret Scanning
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: [test, gitleaks]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    strategy:
+      matrix:
+        module: [swarm-mcp, swarm-scale]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build ${{ matrix.module }} image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./${{ matrix.module }}
+          push: false
+          tags: ${{ matrix.module }}:ci-${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

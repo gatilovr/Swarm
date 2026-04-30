@@ -1,0 +1,101 @@
+# Default values for swarm-worker
+# This is a YAML-formatted file. Declare variables to be passed into templates.
+
+replicaCount: 1
+
+image:
+  repository: swarm-worker
+  tag: latest
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+env:
+  # LLM Provider
+  DEEPSEEK_API_KEY: ""
+  GROQ_API_KEY: ""  # fallback
+  DEEPSEEK_BASE_URL: ""
+
+  # MCP
+  MCP_USE_WORKER: "true"
+
+  # Cache
+  REDIS_URL: ""
+  CACHE_DIR: "/data/cache"
+  L1_TTL: "3600"
+
+  # OpenTelemetry
+  OTEL_EXPORTER_OTLP_ENDPOINT: ""
+  OTEL_ENVIRONMENT: "production"
+
+  # Model
+  ARCHITECT_MODEL: "deepseek-chat"
+  CODER_MODEL: "deepseek-chat"
+  REVIEWER_MODEL: "deepseek-chat"
+
+envSecrets:
+  DEEPSEEK_API_KEY: "swarm-secrets"
+  GROQ_API_KEY: "swarm-secrets"
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+podSecurityContext: {}
+securityContext: {}
+
+resources:
+  limits:
+    cpu: "2"
+    memory: "4Gi"
+  requests:
+    cpu: "500m"
+    memory: "1Gi"
+
+autoscaling:
+  enabled: true
+  minReplicas: 1
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 90
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+service:
+  type: ClusterIP
+  port: 8000
+  metricsPort: 8001
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: swarm.local
+      paths:
+        - path: /
+          pathType: Prefix
+
+persistence:
+  enabled: true
+  size: 10Gi
+  storageClass: ""
+  accessMode: ReadWriteOnce
+
+prometheus:
+  metricsPort: 8001
+  serviceMonitor:
+    enabled: true
+    interval: 15s
+
+kafka:
+  enabled: false
+  brokers: []
+  topic: swarm-tasks
+  groupId: swarm-workers

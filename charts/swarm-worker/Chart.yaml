@@ -1,0 +1,14 @@
+apiVersion: v2
+name: swarm-worker
+description: Helm chart for Swarm Worker - scalable AI agent swarm
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - ai
+  - agents
+  - swarm
+  - langgraph
+home: https://github.com/your-org/swarm
+sources:
+  - https://github.com/your-org/swarm

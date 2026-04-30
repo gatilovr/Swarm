@@ -1,0 +1,199 @@
+{
+  "title": "Swarm Scale Dashboard",
+  "version": 1,
+  "panels": [
+    {
+      "title": "Tasks Processed",
+      "type": "stat",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum(rate(swarm_tasks_total[5m]))",
+          "legendFormat": "Tasks/sec"
+        }
+      ],
+      "gridPos": {"x": 0, "y": 0, "w": 6, "h": 8}
+    },
+    {
+      "title": "Tasks by Status",
+      "type": "piechart",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum(swarm_tasks_total) by (status)",
+          "legendFormat": "{{status}}"
+        }
+      ],
+      "gridPos": {"x": 6, "y": 0, "w": 6, "h": 8}
+    },
+    {
+      "title": "Task Duration (P50, P95, P99)",
+      "type": "timeseries",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(swarm_task_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "P50"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(swarm_task_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "P95"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(swarm_task_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "P99"
+        }
+      ],
+      "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8}
+    },
+    {
+      "title": "Active Workers",
+      "type": "gauge",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "avg(swarm_active_workers)",
+          "legendFormat": "Active"
+        }
+      ],
+      "gridPos": {"x": 0, "y": 8, "w": 4, "h": 8}
+    },
+    {
+      "title": "Queue Depth",
+      "type": "timeseries",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "swarm_queue_depth",
+          "legendFormat": "Queue"
+        }
+      ],
+      "gridPos": {"x": 4, "y": 8, "w": 8, "h": 8}
+    },
+    {
+      "title": "Tokens by Model",
+      "type": "bargauge",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum(rate(swarm_tokens_total[5m])) by (model)",
+          "legendFormat": "{{model}}"
+        }
+      ],
+      "gridPos": {"x": 12, "y": 8, "w": 6, "h": 8}
+    },
+    {
+      "title": "Cost (USD)",
+      "type": "stat",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum(rate(swarm_cost_usd_total[5m]))",
+          "legendFormat": "USD/sec"
+        }
+      ],
+      "gridPos": {"x": 18, "y": 8, "w": 6, "h": 8}
+    },
+    {
+      "title": "Cache Hit Rate",
+      "type": "timeseries",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "rate(swarm_cache_hits_total[5m]) / (rate(swarm_cache_hits_total[5m]) + rate(swarm_cache_misses_total[5m])) * 100",
+          "legendFormat": "Hit Rate %"
+        }
+      ],
+      "gridPos": {"x": 0, "y": 16, "w": 12, "h": 8}
+    },
+    {
+      "title": "Current RPM",
+      "type": "timeseries",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "swarm_rpm_current",
+          "legendFormat": "RPM"
+        }
+      ],
+      "gridPos": {"x": 12, "y": 16, "w": 12, "h": 8}
+    },
+    {
+      "title": "Cache Performance",
+      "type": "row",
+      "datasource": "Prometheus",
+      "gridPos": {"x": 0, "y": 24, "w": 24, "h": 1}
+    },
+    {
+      "title": "Cache Hit Rate by Layer",
+      "type": "timeseries",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "swarm_cache_hit_ratio{layer=\"l1\"}",
+          "legendFormat": "L1 Hit Ratio"
+        },
+        {
+          "expr": "swarm_cache_hit_ratio{layer=\"l2\"}",
+          "legendFormat": "L2 Hit Ratio"
+        }
+      ],
+      "gridPos": {"x": 0, "y": 25, "w": 8, "h": 8}
+    },
+    {
+      "title": "Cache Latency p95",
+      "type": "timeseries",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(swarm_cache_latency_seconds_bucket{operation=\"get\"}[5m])) by (le, layer))",
+          "legendFormat": "{{layer}} p95"
+        }
+      ],
+      "gridPos": {"x": 8, "y": 25, "w": 8, "h": 8}
+    },
+    {
+      "title": "Cache Operations Rate",
+      "type": "timeseries",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "rate(swarm_cache_hits_total[5m])",
+          "legendFormat": "Hits {{layer}}"
+        },
+        {
+          "expr": "rate(swarm_cache_misses_total[5m])",
+          "legendFormat": "Misses {{layer}}"
+        }
+      ],
+      "gridPos": {"x": 16, "y": 25, "w": 8, "h": 8}
+    },
+    {
+      "title": "Cache Size",
+      "type": "timeseries",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "swarm_cache_size_bytes",
+          "legendFormat": "{{layer}}"
+        }
+      ],
+      "gridPos": {"x": 0, "y": 33, "w": 12, "h": 8}
+    },
+    {
+      "title": "Cache Operations by Type",
+      "type": "timeseries",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "rate(swarm_cache_operations_total[5m])",
+          "legendFormat": "{{operation}}"
+        }
+      ],
+      "gridPos": {"x": 12, "y": 33, "w": 12, "h": 8}
+    }
+  ],
+  "templating": {
+    "list": []
+  }
+}

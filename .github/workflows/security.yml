@@ -1,0 +1,88 @@
+name: Security Scan
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  schedule:
+    - cron: '0 6 * * 1'  # Every Monday at 6:00 UTC
+
+jobs:
+  gitleaks:
+    name: Secret Scanning (Gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_CONFIG: .gitleaks.toml
+        # If this fails, there are secrets in the repo
+        continue-on-error: false
+  
+  sbom:
+    name: SBOM Generation (CycloneDX)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install cyclonedx-bom
+      
+      - name: Generate SBOM for root
+        run: |
+          if [ -f requirements.txt ]; then
+            python -m cyclonedx_bom -i requirements.txt -o sbom-root.json --format json
+          fi
+      
+      - name: Generate SBOM for modules
+        run: |
+          for req in swarm/requirements.txt swarm-mcp/requirements.txt swarm-scale/requirements.txt; do
+            if [ -f "$req" ]; then
+              module=$(dirname "$req")
+              python -m cyclonedx_bom -i "$req" -o "sbom-${module}.json" --format json
+            fi
+          done
+      
+      - name: Upload SBOM artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom-*.json
+  
+  dependency-audit:
+    name: Dependency Vulnerability Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      
+      - name: Install pip-audit
+        run: python -m pip install pip-audit
+      
+      - name: Audit dependencies
+        run: |
+          # Audit each module's requirements
+          for req in requirements.txt swarm/requirements.txt swarm-mcp/requirements.txt swarm-scale/requirements.txt; do
+            if [ -f "$req" ]; then
+              echo "=== Auditing $req ==="
+              python -m pip_audit -r "$req" --desc on || true
+            fi
+          done
+        continue-on-error: true  # Don't fail CI on vulnerabilities, just report

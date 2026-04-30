@@ -1,0 +1,37 @@
+{
+	"mcpServers": {
+		"exa": {
+			"command": "npx",
+			"args": [
+				"-y",
+				"exa-mcp-server"
+			],
+			"env": {
+				"EXA_API_KEY": "${EXA_API_KEY}"
+			}
+		},
+		"code-swarm": {
+			"command": "python",
+			"args": [
+				"-m",
+				"swarm_mcp"
+			],
+			"env": {
+				"DEEPSEEK_API_KEY": "${DEEPSEEK_API_KEY}"
+			},
+			"disabled": false,
+			"alwaysAllow": []
+		},
+		"agent-orchestration": {
+			"command": "npx",
+			"args": [
+				"-y",
+				"agent-orchestration",
+				"serve"
+			],
+			"env": {
+				"DEEPSEEK_API_KEY": "${DEEPSEEK_API_KEY}"
+			}
+		}
+	}
+}

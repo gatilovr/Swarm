@@ -1,0 +1,37 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Рекомендуется использовать Helm chart: ../../../charts/swarm-worker
+# Установка: helm install swarm-worker ../../../charts/swarm-worker
+
+namespace: swarm-system
+
+resources:
+  - deployment.yaml
+  - hpa.yaml
+
+commonLabels:
+  app: swarm-scale
+  managed-by: kustomize
+
+configMapGenerator:
+  - name: swarm-scale-config
+    literals:
+      - SCALE_MAX_WORKERS=10
+      - SCALE_RPM_LIMIT=500
+      - SCALE_CACHE_SIZE_GB=10
+      - SCALE_CACHE_TTL_HOURS=24
+      - SCALE_ENABLE_METRICS=true
+      - SCALE_METRICS_PORT=8000
+
+secretGenerator:
+  - name: swarm-scale-secrets
+    envs:
+      - .env.secrets
+    options:
+      disableNameSuffixHash: true
+
+images:
+  - name: swarm-scale
+    newName: ghcr.io/your-org/swarm-scale
+    newTag: latest

@@ -1,0 +1,17 @@
+.env
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+.swarm_cache/
+.test_cache/
+dist/
+build/
+.agent-orchestration/
+
+# SBOM
+sbom.json
+sbom-*.json
+
+# Gitleaks
+gitleaks-report.json

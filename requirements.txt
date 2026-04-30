@@ -1,0 +1,12 @@
+langgraph>=0.4.0
+python-dotenv>=1.0.0
+litellm>=1.60.0
+mcp>=1.0.0
+# OpenTelemetry для distributed tracing (optional — graceful fallback if missing)
+opentelemetry-api>=1.30.0
+opentelemetry-sdk>=1.30.0
+# OTLP gRPC exporter (optional — нужен только для продакшн экспорта)
+# opentelemetry-exporter-otlp-proto-grpc>=1.30.0
+# Prompt compression (optional — graceful fallback if missing)
+# llmlingua>=2.0.0
+# torch>=2.0.0

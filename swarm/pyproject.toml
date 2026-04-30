@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "swarm"
+version = "0.2.0"
+description = "Рой AI-агентов (Архитектор, Кодер, Ревьюер) на базе LangGraph и LiteLLM"
+requires-python = ">=3.11"
+dependencies = [
+    "langgraph>=0.2.0",
+    "python-dotenv>=1.0.0",
+    "litellm>=1.60.0",
+    # OpenTelemetry для distributed tracing (optional — graceful fallback if missing)
+    "opentelemetry-api>=1.30.0",
+    "opentelemetry-sdk>=1.30.0",
+    # Prompt compression via LLMLingua (optional — graceful fallback if missing)
+    # llmlingua>=0.2.0  # раскомментировать если нужна ML-компрессия
+]
+
+[project.optional-dependencies]
+compression = [
+    "llmlingua>=0.2.0",
+    "torch>=2.0.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["swarm*"]

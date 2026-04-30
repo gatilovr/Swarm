@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "swarm-scale"
+version = "1.0.0"
+description = "Масштабируемая enterprise-система роя AI-агентов"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "Swarm Team"},
+]
+
+dependencies = [
+    "diskcache>=5.6.0",
+    "redis>=5.0.0",
+    "prometheus-client>=0.19.0",
+    "structlog>=24.0.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+kafka = ["aiokafka>=0.10.0"]
+postgres = ["asyncpg>=0.29.0"]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+]
+test = [
+    "pytest>=8.0",
+    "hypothesis>=6.100",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["swarm_scale*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+asyncio_mode = "auto"

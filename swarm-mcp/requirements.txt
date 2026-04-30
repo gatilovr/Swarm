@@ -1,0 +1,2 @@
+swarm @ file:///c:/Users/gatil/VisualStudioCodeProject/Swarm/swarm
+mcp>=1.0.0
