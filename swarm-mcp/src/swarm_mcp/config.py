@@ -10,7 +10,7 @@ class MCPConfig:
     """Конфигурация с общими настройками для MCP.
 
     Оборачивает SwarmConfig и добавляет параметры,
-    специфичные для MCP-сервера (имя, версия).
+    специфичные для MCP-сервера (имя, версия, orchestration).
 
     Поддерживает опциональное использование SwarmWorker
     с кэшем и rate limiter вместо прямого SwarmRunner.
@@ -24,12 +24,22 @@ class MCPConfig:
                          Если None, загружается из .env автоматически.
         """
         self.swarm = swarm_config or SwarmConfig.from_env()
-        self.server_name: str = "code-swarm"
-        self.server_version: str = "1.0.0"
+        self.server_name: str = "swarm"
+        self.server_version: str = "2.0.0"
 
         # Опциональное использование SwarmWorker (с кэшем и rate limiter)
         self.use_worker: bool = (
             os.getenv("MCP_USE_WORKER", "false").lower() == "true"
+        )
+
+        # Продуктовые инструменты
+        self.orchestration_enabled: bool = (
+            os.getenv("MCP_ORCHESTRATION", "true").lower() == "true"
+        )
+
+        # Безопасность
+        self.enable_executor: bool = (
+            os.getenv("MCP_ENABLE_EXECUTOR", "true").lower() == "true"
         )
 
     @classmethod

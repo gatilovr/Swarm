@@ -8,30 +8,28 @@
 			],
 			"env": {
 				"EXA_API_KEY": "${EXA_API_KEY}"
-			}
+			},
+			"alwaysAllow": [
+				"web_search_exa"
+			]
 		},
-		"code-swarm": {
+		"swarm": {
 			"command": "python",
 			"args": [
 				"-m",
 				"swarm_mcp"
 			],
 			"env": {
-				"DEEPSEEK_API_KEY": "${DEEPSEEK_API_KEY}"
+				"DEEPSEEK_API_KEY": "${DEEPSEEK_API_KEY}",
+				"MCP_ORCHESTRATION": "true"
 			},
 			"disabled": false,
-			"alwaysAllow": []
-		},
-		"agent-orchestration": {
-			"command": "npx",
-			"args": [
-				"-y",
-				"agent-orchestration",
-				"serve"
-			],
-			"env": {
-				"DEEPSEEK_API_KEY": "${DEEPSEEK_API_KEY}"
-			}
+			"alwaysAllow": [
+				"run_swarm",
+				"swarm_status",
+				"swarm_ask",
+				"swarm_files"
+			]
 		}
 	}
 }

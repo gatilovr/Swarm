@@ -9,7 +9,7 @@
 | Модуль | Путь | Назначение | Зависит от |
 |--------|------|-----------|------------|
 | `swarm` | [`swarm/`](swarm/) | Ядро: агенты, граф, LLM провайдер | litellm, langgraph, opentelemetry-api |
-| `swarm-mcp` | [`swarm-mcp/`](swarm-mcp/) | MCP сервер для Roo Code | swarm, mcp |
+| `swarm-mcp` | [`swarm-mcp/`](swarm-mcp/) | MCP сервер v2.0 (5 инструментов) | swarm, mcp |
 | `swarm-scale` | [`swarm-scale/`](swarm-scale/) | Масштабирование: кэш, worker, rate limiter | swarm, prometheus_client, redis |
 
 **Граф зависимостей:**
@@ -45,7 +45,11 @@ Task → MCP/CLI → SwarmRunner → StateGraph
 | LiteLLM impl | [`swarm/llm/litellm_provider.py`](swarm/llm/litellm_provider.py) | Router с fallback DeepSeek → Groq |
 | Граф | [`swarm/graph/workflow.py`](swarm/graph/workflow.py) | `create_swarm_graph(config)` |
 | Runner | [`swarm/main.py`](swarm/main.py) | `run(task)`, `stream(task)` (оба async) |
-| MCP сервер | [`swarm-mcp/src/swarm_mcp/server.py`](swarm-mcp/src/swarm_mcp/server.py) | `call_tool(name, arguments)` |
+| MCP сервер | [`swarm-mcp/src/swarm_mcp/server.py`](swarm-mcp/src/swarm_mcp/server.py) | `call_tool(name, arguments)` — 5 инструментов |
+| Status | [`swarm-mcp/src/swarm_mcp/status.py`](swarm-mcp/src/swarm_mcp/status.py) | `ProjectStatus.analyze()`, `.summary()` |
+| Ask | [`swarm-mcp/src/swarm_mcp/ask.py`](swarm-mcp/src/swarm_mcp/ask.py) | `ProjectQA.ask(question)` — 9 категорий |
+| Executor | [`swarm-mcp/src/swarm_mcp/executor.py`](swarm-mcp/src/swarm_mcp/executor.py) | `CommandExecutor.execute(command)` — 4-уровневая безопасность |
+| Policy | [`swarm-mcp/src/swarm_mcp/policy.py`](swarm-mcp/src/swarm_mcp/policy.py) | `SafetyPolicy`, `classify_command()`, `load_policy()` |
 | Worker | [`swarm-scale/src/swarm_scale/worker.py`](swarm-scale/src/swarm_scale/worker.py) | `process_task(task)`, `process_batch(tasks)` |
 | Кэш | [`swarm-scale/src/swarm_scale/cache.py`](swarm-scale/src/swarm_scale/cache.py) | `get(task, profile_id)`, `set(task, result, profile_id)` |
 | Rate limiter | [`swarm-scale/src/swarm_scale/rate_limiter.py`](swarm-scale/src/swarm_scale/rate_limiter.py) | `acquire()`, `release()` (async) |
@@ -167,6 +171,9 @@ class ModelConfig:
 | ADR-006 | Helm chart + Terraform | Только kustomization | Helm — стандарт для K8s, Terraform — для облака | [`charts/swarm-worker/`](charts/swarm-worker/) |
 | ADR-007 | `copy.deepcopy` для race condition | Lock | deepcopy проще и безопаснее блокировок | [`swarm-scale/src/swarm_scale/worker.py:110`](swarm-scale/src/swarm_scale/worker.py:110) |
 | ADR-008 | `MCP_USE_WORKER` env var | Всегда worker | Совместимость с простыми случаями | [`swarm-mcp/src/swarm_mcp/config.py:31`](swarm-mcp/src/swarm_mcp/config.py:31) |
+| ADR-009 | 5 продуктовых инструментов вместо 35+ микросервисных | Микросервисные MCP-инструменты | Swarm — продукт, а не инфраструктура | [`swarm-mcp/src/swarm_mcp/server.py`](swarm-mcp/src/swarm_mcp/server.py) |
+| ADR-010 | 4-уровневая безопасность для shell-команд | Полное доверие / полный запрет | Баланс между удобством и безопасностью | [`swarm-mcp/src/swarm_mcp/executor.py`](swarm-mcp/src/swarm_mcp/executor.py) |
+| ADR-011 | JSON-ответы run_swarm | Markdown-ответы | Roo Code должен парсить результат программно | [`swarm-mcp/src/swarm_mcp/server.py`](swarm-mcp/src/swarm_mcp/server.py) |
 
 ---
 
@@ -196,7 +203,53 @@ class ModelConfig:
 
 ---
 
-## 7. Тестирование
+## 7. Структура MCP-сервера (v2.0)
+
+```
+swarm-mcp/src/swarm_mcp/
+├── __init__.py          # Экспорт: create_server, main, MCPConfig (v2.0.0)
+├── __main__.py          # Точка входа: python -m swarm_mcp
+├── ask.py               # ProjectQA — вопросы о проекте
+│                        #   _categorize() → 9 категорий
+│                        #   _answer() → генерация ответа
+│                        #   _answer_security() → поиск уязвимостей regex
+├── config.py            # MCPConfig + SwarmConfig
+│                        #   orchestration_enabled — вкл/выкл tools
+│                        #   enable_executor — вкл/выкл swarm_execute
+├── executor.py          # CommandExecutor + CommandSanitizer
+│                        #   execute() → проверка политики → subprocess
+│                        #   history + stats для мониторинга
+├── policy.py            # SafetyPolicy + load_policy()
+│                        #   3 уровня: auto_allow / require_approval / deny
+│                        #   .swarm-policy.toml → пользовательские политики
+├── server.py            # MCP-сервер: 5 инструментов
+│                        #   list_tools() → 5 Tool описаний
+│                        #   call_tool() → маршрутизация по имени
+│                        #   _handle_run_swarm() → SwarmRunner/SwarmWorker
+│                        #   _handle_swarm_status() → ProjectStatus
+│                        #   _handle_swarm_ask() → ProjectQA
+│                        #   _handle_swarm_execute() → CommandExecutor
+│                        #   _handle_swarm_files() → glob-чтение файлов
+└── status.py            # ProjectStatus — анализ проекта
+                         #   analyze() → полная структура
+                         #   summary() → краткое резюме
+```
+
+### 7.1. Ленивые импорты
+
+Каждый модуль (status, ask, executor, policy) импортируется **лениво** — только при вызове соответствующего инструмента:
+
+```python
+def _get_status() -> Any:
+    from swarm_mcp.status import ProjectStatus
+    return ProjectStatus(os.getcwd())
+```
+
+Это гарантирует, что старт сервера быстрый, а зависимости загружаются только по необходимости.
+
+---
+
+## 8. Тестирование
 
 | Тип | Инструмент | Команда | Файлов |
 |-----|-----------|---------|--------|
@@ -211,7 +264,7 @@ class ModelConfig:
 
 ---
 
-## 8. CI/CD
+## 9. CI/CD
 
 | Шаг | Job | Файл | Блокирует? |
 |-----|-----|------|-----------|
@@ -225,7 +278,7 @@ class ModelConfig:
 
 ---
 
-## 9. Security
+## 10. Security
 
 - **API ключи**: только в `.env` или Kubernetes Secrets
 - **Secret scanning**: Gitleaks в CI ([`.gitleaks.toml`](.gitleaks.toml))
@@ -235,7 +288,7 @@ class ModelConfig:
 
 ---
 
-## 10. Метрики (Prometheus)
+## 11. Метрики (Prometheus)
 
 | Метрика | Тип | Labels | Файл |
 |---------|-----|--------|------|
@@ -252,7 +305,7 @@ class ModelConfig:
 
 ---
 
-## 11. Трассировка (OpenTelemetry)
+## 12. Трассировка (OpenTelemetry)
 
 | Span | Родитель | Где создаётся |
 |------|----------|-------------|

@@ -4,6 +4,8 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Any, Optional
 
+from opentelemetry.trace import Status, StatusCode
+
 from swarm.llm import BaseLLMProvider, LLMResponse
 from swarm.state import SwarmState
 from swarm.tracing import get_tracer
@@ -77,7 +79,7 @@ class BaseAgent(ABC):
             messages: список сообщений для отправки в LLM
 
         Returns:
-            str: текстовый ответ модели
+            str: текстовый ответ модели или сообщение об ошибке (fallback)
         """
         span_name = f"{self.__class__.__name__}._call_llm"
 
@@ -89,9 +91,20 @@ class BaseAgent(ABC):
                     "agent.messages_count": len(messages),
                 },
             ) as span:
-                return await self._do_call_llm(messages, span)
+                try:
+                    return await self._do_call_llm(messages, span)
+                except Exception as e:
+                    error_msg = f"{self.name} LLM call failed: {e}"
+                    logger.error(error_msg)
+                    span.set_status(Status(StatusCode.ERROR, str(e)))
+                    return f"ERROR: {e}"
         else:
-            return await self._do_call_llm(messages, None)
+            try:
+                return await self._do_call_llm(messages, None)
+            except Exception as e:
+                error_msg = f"{self.name} LLM call failed: {e}"
+                logger.error(error_msg)
+                return f"ERROR: {e}"
 
     async def _do_call_llm(self, messages: list[dict[str, str]], span=None) -> str:
         """Внутренний метод вызова LLM с опциональным span."""
@@ -122,4 +135,4 @@ class BaseAgent(ABC):
                 span.set_attribute("llm.error", str(e))
                 span.record_exception(e)
 
-            return f"ERROR: {error_msg}"
+            raise

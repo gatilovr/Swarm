@@ -38,13 +38,14 @@ class TestDiskCacheProperties:
         value=result_strategy,
         ttl_hours=ttl_hours_strategy,
     )
-    def test_disk_cache_roundtrip(self, key, value, ttl_hours):
+    @pytest.mark.asyncio
+    async def test_disk_cache_roundtrip(self, key, value, ttl_hours):
         """DiskCache: set(key, value) → get(key) == value для любых данных."""
         tmpdir = tempfile.mkdtemp()
         try:
             cache = DiskCache(directory=tmpdir, ttl_hours=ttl_hours, max_size_gb=1)
-            cache.set(key, value)
-            result = cache.get(key)
+            await cache.set(key, value)
+            result = await cache.get(key)
             assert result is not None
             assert result == value
         finally:
@@ -57,7 +58,8 @@ class TestDiskCacheProperties:
         value=result_strategy,
         ttl_hours=ttl_hours_strategy,
     )
-    def test_disk_cache_miss_on_different_key(self, key1, key2, value, ttl_hours):
+    @pytest.mark.asyncio
+    async def test_disk_cache_miss_on_different_key(self, key1, key2, value, ttl_hours):
         """DiskCache: set(X) → get(Y) == None если X != Y."""
         # Гарантируем разные ключи
         if key1 == key2:
@@ -65,8 +67,8 @@ class TestDiskCacheProperties:
         tmpdir = tempfile.mkdtemp()
         try:
             cache = DiskCache(directory=tmpdir, ttl_hours=ttl_hours, max_size_gb=1)
-            cache.set(key1, value)
-            result = cache.get(key2)
+            await cache.set(key1, value)
+            result = await cache.get(key2)
             assert result is None
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)
@@ -77,7 +79,8 @@ class TestDiskCacheProperties:
         value=result_strategy,
         ttl_hours=ttl_hours_strategy,
     )
-    def test_disk_cache_multiple_keys(self, keys, value, ttl_hours):
+    @pytest.mark.asyncio
+    async def test_disk_cache_multiple_keys(self, keys, value, ttl_hours):
         """DiskCache: множество ключей с одинаковым значением не пересекаются."""
         # Дедуплицируем ключи
         unique_keys = list(dict.fromkeys(keys))
@@ -87,9 +90,9 @@ class TestDiskCacheProperties:
         try:
             cache = DiskCache(directory=tmpdir, ttl_hours=ttl_hours, max_size_gb=1)
             for k in unique_keys:
-                cache.set(k, value)
+                await cache.set(k, value)
             for k in unique_keys:
-                result = cache.get(k)
+                result = await cache.get(k)
                 assert result is not None
                 assert result == value
         finally:
@@ -99,12 +102,13 @@ class TestDiskCacheProperties:
     @given(
         ttl_hours=ttl_hours_strategy,
     )
-    def test_disk_cache_empty_initially(self, ttl_hours):
+    @pytest.mark.asyncio
+    async def test_disk_cache_empty_initially(self, ttl_hours):
         """DiskCache: новый кэш пуст."""
         tmpdir = tempfile.mkdtemp()
         try:
             cache = DiskCache(directory=tmpdir, ttl_hours=ttl_hours, max_size_gb=1)
-            result = cache.get("any_key")
+            result = await cache.get("any_key")
             assert result is None
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)

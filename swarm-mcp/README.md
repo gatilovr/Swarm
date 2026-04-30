@@ -3,13 +3,13 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-**Swarm MCP Server** — это MCP-сервер (Model Context Protocol) для роя AI-агентов, который предоставляет инструмент `run_swarm`. Сервер позволяет Roo Code и другим MCP-клиентам запускать команду из трёх AI-агентов, работающих в цикле:
+**Swarm MCP Server (v2.0)** — это продуктовый MCP-сервер, который предоставляет Roo Code 5 высокоуровневых инструментов для работы с роем AI-агентов.
 
-1. **🏗️ Архитектор** — анализирует техническое задание и создаёт план
-2. **💻 Кодер** — пишет код по утверждённому плану
-3. **🔍 Ревьюер** — проверяет код (APPROVED/REJECTED)
+Внутри сервера работают три AI-агента, выполняющих полный цикл разработки:
 
-При отклонении код отправляется на доработку (до 3 итераций).
+1. **🏗️ Архитектор** — анализирует ТЗ и создаёт план
+2. **💻 Кодер** — пишет код по плану
+3. **🔍 Ревьюер** — проверяет код (APPROVED/REJECTED, до 3 итераций)
 
 ---
 
@@ -18,7 +18,8 @@
 - [Установка](#установка)
 - [Быстрый старт](#быстрый-старт)
 - [Конфигурация](#конфигурация)
-- [API](#api)
+- [Инструменты MCP](#инструменты-mcp)
+- [Безопасность](#безопасность)
 - [Архитектура](#архитектура)
 - [Разработка](#разработка)
 - [Docker](#docker)
@@ -36,11 +37,8 @@
 ### Из исходников
 
 ```bash
-# Клонируйте репозиторий
 git clone <your-repo-url>
 cd swarm-mcp
-
-# Установите в режиме разработки
 pip install -e .
 ```
 
@@ -79,23 +77,30 @@ python -m swarm_mcp
 
 ### 3. Подключение к Roo Code
 
-Добавьте MCP-сервер в конфигурацию Roo Code:
+Добавьте MCP-сервер в конфигурацию Roo Code (файл `.roo/mcp.json`):
 
 ```json
 {
   "mcpServers": {
-    "code-swarm": {
+    "swarm": {
       "command": "python",
       "args": ["-m", "swarm_mcp"],
       "env": {
         "DEEPSEEK_API_KEY": "sk-your-api-key"
-      }
+      },
+      "disabled": false,
+      "alwaysAllow": [
+        "run_swarm",
+        "swarm_status",
+        "swarm_ask",
+        "swarm_files"
+      ]
     }
   }
 }
 ```
 
-После подключения инструмент `run_swarm` будет доступен в Roo Code.
+После подключения все 5 инструментов будут доступны в Roo Code.
 
 ### 4. Использование
 
@@ -116,6 +121,8 @@ python -m swarm_mcp
 | Переменная | Описание | По умолчанию |
 |-----------|----------|-------------|
 | `DEEPSEEK_API_KEY` | API-ключ DeepSeek **(обязательно)** | — |
+| `MCP_ORCHESTRATION` | Включить инструменты оркестрации (`swarm_status`, `swarm_ask` и др.) | `true` |
+| `MCP_ENABLE_EXECUTOR` | Включить `swarm_execute` | `true` |
 | `ARCHITECT_MODEL` | Модель для архитектора | `deepseek-chat` |
 | `CODER_MODEL` | Модель для кодера | `deepseek-chat` |
 | `REVIEWER_MODEL` | Модель для ревьюера | `deepseek-chat` |
@@ -127,6 +134,7 @@ python -m swarm_mcp
 
 ```env
 DEEPSEEK_API_KEY=sk-your-key-here
+MCP_ORCHESTRATION=true
 ARCHITECT_MODEL=deepseek-chat
 CODER_MODEL=deepseek-chat
 REVIEWER_MODEL=deepseek-chat
@@ -137,122 +145,170 @@ MAX_ITERATIONS=3
 
 ---
 
-## API
+## Инструменты MCP
 
-### Инструмент `run_swarm`
+Сервер предоставляет 5 инструментов для Roo Code:
 
-Запускает рой AI-агентов для выполнения задачи.
+### `run_swarm`
 
-#### Параметры
+Запускает полный цикл разработки: Архитектор → Кодер → Ревьюер (с циклом доработки).
 
-| Параметр | Тип | Обязательный | Описание |
-|---------|-----|-------------|----------|
-| `task` | `string` | ✅ | Детальное техническое задание на разработку |
+| Параметр | Тип | Обязательный | По умолчанию | Описание |
+|----------|-----|-------------|-------------|----------|
+| `task` | `string` | ✅ | — | Детальное техническое задание |
+| `context` | `string` | ❌ | `""` | Дополнительный контекст (файлы, архитектура) |
+| `mode` | `enum` | ❌ | `full` | `full` — полный цикл, `plan` — только план |
+| `complexity` | `enum` | ❌ | `auto` | `auto` / `low` / `medium` / `high` / `critical` |
+| `project_files` | `int` | ❌ | `0` | Примерное количество файлов в проекте |
 
-#### Формат ответа
+**Формат ответа (JSON):**
 
-Успешный ответ содержит markdown-разделы:
+```json
+{
+  "status": "success",
+  "summary": "Код написан и прошёл ревью с 1 итерации",
+  "plan": "1. Создать функцию...",
+  "code": "def quicksort(arr): ...",
+  "review": "APPROVED",
+  "iterations": 1,
+  "files": ["examples/quicksort.py"],
+  "cached": false,
+  "tokens": {
+    "total": 1520,
+    "prompt": 850,
+    "completion": 670
+  }
+}
+```
 
-```markdown
-## 🏗️ План архитектора
-(план, сгенерированный архитектором)
+### `swarm_status`
+
+Показывает состояние проекта: структуру, файлы, тесты, git-статус.
+
+| Параметр | Тип | Обязательный | По умолчанию | Описание |
+|----------|-----|-------------|-------------|----------|
+| `scope` | `enum` | ❌ | `summary` | `summary` — кратко, `full` — детально |
+
+**Пример ответа:**
+
+```json
+{
+  "project_name": "Swarm",
+  "total_files": 95,
+  "total_lines": 12500,
+  "test_files": 18,
+  "languages": {"Python": 85, "YAML": 5, "Markdown": 5},
+  "git_branch": "main",
+  "git_clean": true
+}
+```
+
+### `swarm_ask`
+
+Задаёт вопрос о проекте и получает структурированный ответ.
+
+| Параметр | Тип | Обязательный | По умолчанию | Описание |
+|----------|-----|-------------|-------------|----------|
+| `question` | `string` | ✅ | — | Вопрос на естественном языке |
+| `files` | `string[]` | ❌ | — | Ограничить анализ конкретными файлами |
+
+**Поддерживаемые категории вопросов:**
+- Архитектура: «какая архитектура?», «как устроен проект?»
+- Зависимости: «какие библиотеки используются?»
+- Безопасность: «есть ли уязвимости?», «как с аутентификацией?»
+- Производительность: «где узкое место?»
+- Тесты: «какие есть тесты?», «какое покрытие?»
+- Качество кода: «как улучшить код?»
+- Документация: «есть ли документация?»
+- Конфигурация: «какие настройки?»
+- Общие: «что это за проект?»
+
+### `swarm_execute`
+
+Безопасно выполняет команду терминала с проверкой по политикам безопасности.
+
+| Параметр | Тип | Обязательный | По умолчанию | Описание |
+|----------|-----|-------------|-------------|----------|
+| `command` | `string` | ✅ | — | Команда для выполнения |
+| `timeout` | `int` | ❌ | `60` | Таймаут в секундах (макс. 300) |
+| `approved` | `bool` | ❌ | `false` | Предварительное одобрение |
+
+**Внимание:** Этот инструмент требует явного одобрения пользователя (не в `alwaysAllow`).
+
+### `swarm_files`
+
+Читает содержимое файлов по glob-паттерну.
+
+| Параметр | Тип | Обязательный | По умолчанию | Описание |
+|----------|-----|-------------|-------------|----------|
+| `pattern` | `string` | ✅ | — | Glob-паттерн (например, `**/*.py`) |
+| `max_lines` | `int` | ❌ | `100` | Максимум строк на файл |
 
 ---
 
-## 💻 Итоговый код
-```python
-(код, сгенерированный кодером)
-```
+## Безопасность
 
----
+`swarm_execute` имеет 4-уровневую систему безопасности:
 
-## 🔍 Результат ревью
-(результат проверки ревьюером: APPROVED/REJECTED)
-```
+1. **System Prompt** — ограничения на уровне промпта Roo Code
+2. **`.swarm-policy.toml`** — файл политик в корне проекта (3 уровня: `auto_allow`, `require_approval`, `deny`)
+3. **CommandSanitizer** — кодовая проверка команд (case-insensitive, частичное совпадение)
+4. **Roo Code approval** — пользователь явно подтверждает `swarm_execute`
 
-#### Пример ответа (сокращённый)
+### Политики по умолчанию
 
-```markdown
-## 🏗️ План архитектора
-
-1. Создать функцию quicksort с рекурсивным подходом
-2. Выбрать опорный элемент (pivot) — средний элемент массива
-3. Разделить массив на элементы меньше и больше pivot
-4. Рекурсивно отсортировать подмассивы
-5. Объединить результаты
-
----
-
-## 💻 Итоговый код
-
-```python
-def quicksort(arr):
-    if len(arr) <= 1:
-        return arr
-    pivot = arr[len(arr) // 2]
-    left = [x for x in arr if x < pivot]
-    middle = [x for x in arr if x == pivot]
-    right = [x for x in arr if x > pivot]
-    return quicksort(left) + middle + quicksort(right)
-```
-
----
-
-## 🔍 Результат ревью
-
-APPROVED
-```
-
-#### Ошибки
-
-Сервер возвращает сообщения вида:
-
-- `ERROR: DEEPSEEK_API_KEY not configured.` — отсутствует API-ключ
-- `ERROR: Parameter 'task' is required.` — не передан параметр `task`
-- `ERROR: <текст ошибки>` — ошибка при выполнении (ошибка API, таймаут и т.д.)
+| Уровень | Команды |
+|---------|---------|
+| ✅ `auto_allow` | `pip install`, `pytest`, `git status`, `git diff`, `git log`, `ls`, `dir`, `type`, `find`, `echo` |
+| ⚠️ `require_approval` | `git push`, `git commit`, `git merge`, `rm`, `del`, `mv`, `move`, `copy`, `cp`, `mkdir`, `sudo`, `npm publish` |
+| 🚫 `deny` | `rm -rf /`, `chmod 777`, `format C:`, `del /F /S`, `> /dev/sda`, `:(){ :\|:& };:` |
 
 ---
 
 ## Архитектура
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                   MCP Client (Roo Code)                  │
-└──────────────────────┬──────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│                    Roo Code (MCP Client)                       │
+└──────────────────────┬───────────────────────────────────────┘
                        │ JSON-RPC (stdio)
-┌──────────────────────▼──────────────────────────────────┐
-│                   swarm-mcp (MCP Server)                 │
-│                                                          │
-│  ┌──────────┐    ┌──────────┐    ┌──────────┐           │
-│  │  Server   │───▷│ call_tool│───▷│ run_swarm│           │
-│  │ (MCP)     │    │ handler  │    │ handler  │           │
-│  └──────────┘    └──────────┘    └─────┬────┘           │
-│                                         │                │
-│  ┌──────────────────────────────────────▼──────────────┐ │
-│  │                 SwarmRunner                          │ │
-│  │  ┌──────────┐   ┌──────────┐   ┌──────────┐        │ │
-│  │  │Architect │──▷│  Coder   │──▷│ Reviewer │──▷      │ │
-│  │  │ (plan)   │   │ (code)   │   │(review)  │  loop   │ │
-│  │  └──────────┘   └──────────┘   └──────────┘        │ │
-│  └─────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────┘
+┌──────────────────────▼───────────────────────────────────────┐
+│                    swarm-mcp (MCP Server v2.0)                 │
+│                                                                │
+│  ┌─────────────────────────────────────────────────────────┐  │
+│  │  call_tool handler                                       │  │
+│  │  ┌──────────┐ ┌──────────┐ ┌────────┐ ┌───────────┐   │  │
+│  │  │run_swarm │ │swarm_stat│ │swarm_ │ │swarm_exec │   │  │
+│  │  │          │ │us        │ │ask    │ │ute        │   │  │
+│  │  └────┬─────┘ └────┬─────┘ └───┬────└─────┬─────┘   │  │
+│  │       │             │           │          │          │  │
+│  │  ┌────▼─────┐ ┌────▼─────┐ ┌───▼────┐ ┌───▼──────┐  │  │
+│  │  │SwarmRunn │ │ProjectSt │ │Project │ │CommandEx │  │  │
+│  │  │er        │ │atus      │ │QA      │ │ecutor    │  │  │
+│  │  │          │ │          │ │        │ │          │  │  │
+│  │  │ ┌──────┐ │ │┌───────┐ │ │┌──────┐│ │┌────────┐│  │  │
+│  │  │ │Archit│ │ ││Files  │ │ ││Categ ││ ││Sanitiz ││  │  │
+│  │  │ │-ector│ │ ││Git    │ │ ││ories ││ ││er      ││  │  │
+│  │  │ │Coder │ │ ││Tests  │ │ ││Answer││ ││Policy  ││  │  │
+│  │  │ │Review│ │ ││Config │ │ ││s     ││ ││        ││  │  │
+│  │  │ │er    │ │ │└───────┘ │ │└──────┘│ │└────────┘│  │  │
+│  │  │ └──────┘ │ └─────────┘ └────────┘ └──────────┘  │  │
+│  │  └──────────┘                                       │  │
+│  └─────────────────────────────────────────────────────────┘  │
+│                                                                │
+│  Config: config.py    Cache: CacheManager    Queue: Queue      │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 ### Компоненты
 
-1. **MCP Server Layer** (`server.py`) — обрабатывает MCP-запросы через `list_tools` и `call_tool`, выполняет валидацию, управляет ошибками
-2. **Config Layer** (`config.py`) — загружает и предоставляет конфигурацию
-3. **Swarm Layer** (`swarm` package) — ядро роя: граф LangGraph с тремя агентами
-
-### Поток выполнения
-
-1. Клиент вызывает `run_swarm` с параметром `task`
-2. Сервер проверяет API-ключ и валидирует входные данные
-3. Создаётся `SwarmRunner` с загруженной конфигурацией
-4. Запускается `runner.stream(task)` — пошаговое выполнение графа
-5. На каждом шаге отправляется прогресс-уведомление (опционально)
-6. После завершения формируется структурированный ответ
-7. Ответ возвращается клиенту
+1. **MCP Server Layer** ([`server.py`](src/swarm_mcp/server.py)) — обрабатывает MCP-запросы, маршрутизирует к 5 хендлерам
+2. **Config Layer** ([`config.py`](src/swarm_mcp/config.py)) — MCPConfig с флагами `orchestration_enabled`, `enable_executor`
+3. **Swarm Runner** ([`swarm/main.py`](../swarm/main.py)) — ядро роя: граф LangGraph с тремя агентами
+4. **Status** ([`status.py`](src/swarm_mcp/status.py)) — анализ состояния проекта
+5. **Ask** ([`ask.py`](src/swarm_mcp/ask.py)) — ответы на вопросы о проекте (9 категорий)
+6. **Executor** ([`executor.py`](src/swarm_mcp/executor.py)) — безопасный запуск команд с политиками
+7. **Policy** ([`policy.py`](src/swarm_mcp/policy.py)) — загрузка политик безопасности из `.swarm-policy.toml`
 
 ---
 
@@ -261,7 +317,7 @@ APPROVED
 ### Установка для разработки
 
 ```bash
-# Из корня swarm-mcp/
+cd swarm-mcp
 pip install -e .
 pip install pytest pytest-asyncio
 ```
@@ -269,40 +325,47 @@ pip install pytest pytest-asyncio
 ### Запуск тестов
 
 ```bash
-# Из корня swarm-mcp/
-python -m pytest tests/test_server.py -v
+cd swarm-mcp
+pytest tests/ -v
 ```
 
 ### Структура проекта
 
 ```
 swarm-mcp/
-├── Dockerfile                  # Docker-образ
-├── LICENSE                     # MIT лицензия
-├── README.md                   # Документация (этот файл)
-├── pyproject.toml              # Конфигурация пакета Python
-├── requirements.txt            # Зависимости для pip
+├── Dockerfile                      # Docker-образ
+├── LICENSE                         # MIT лицензия
+├── README.md                       # Документация (этот файл)
+├── pyproject.toml                  # Конфигурация пакета Python
+├── requirements.txt                # Зависимости для pip
 ├── src/
 │   └── swarm_mcp/
-│       ├── __init__.py         # Экспорт публичного API
-│       ├── __main__.py         # Точка входа: python -m swarm_mcp
-│       ├── config.py           # Конфигурация MCP-сервера
-│       └── server.py           # MCP-сервер (инструмент run_swarm)
+│       ├── __init__.py             # Экспорт публичного API (v2.0.0)
+│       ├── __main__.py             # Точка входа: python -m swarm_mcp
+│       ├── ask.py                  # Вопросы по проекту (ProjectQA)
+│       ├── config.py               # MCPConfig с флагами оркестрации
+│       ├── executor.py             # Безопасный запуск команд
+│       ├── policy.py               # Политики безопасности из .swarm-policy.toml
+│       ├── server.py               # MCP-сервер (5 инструментов)
+│       └── status.py               # Анализ состояния проекта
 └── tests/
     ├── __init__.py
-    └── test_server.py          # Mock-тесты MCP-сервера
+    ├── test_ask.py                 # Тесты ProjectQA
+    ├── test_executor.py            # Тесты CommandExecutor
+    ├── test_policy.py              # Тесты SafetyPolicy
+    ├── test_server.py              # Mock-тесты сервера
+    └── test_status.py              # Тесты ProjectStatus
 ```
 
-### Написание тестов
+### Тесты
 
-Тесты используют `unittest.mock` для изоляции:
-
-```python
-@pytest.mark.asyncio
-async def test_successful_run():
-    result = await server.call_tool("run_swarm", {"task": "test"})
-    assert "План архитектора" in result[0].text
-```
+| Файл | Тестов | Описание |
+|------|--------|----------|
+| `test_server.py` | 21 | Создание сервера, 5 инструментов, вызовы, конфиг |
+| `test_policy.py` | 14 | Загрузка политик, классификация команд |
+| `test_executor.py` | 13 | Sanitizer, Executor, история, статистика |
+| `test_status.py` | 7 | Анализ файлов, git, тесты, структура |
+| `test_ask.py` | 10 | 9 категорий + общие вопросы |
 
 ---
 
@@ -321,7 +384,7 @@ docker build -t swarm-mcp .
 docker run -e DEEPSEEK_API_KEY=sk-your-key swarm-mcp
 ```
 
-### Docker Compose (пример)
+### Docker Compose
 
 ```yaml
 version: "3.8"

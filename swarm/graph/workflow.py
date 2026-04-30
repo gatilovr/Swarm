@@ -70,7 +70,15 @@ def create_swarm_graph(config: SwarmConfig) -> CompiledStateGraph:
         iteration = state.get("iteration", 0)
         max_iterations = state.get("max_iterations", 3)
 
-        if "APPROVED" in review_result.upper():
+        # Проверка на успешное прохождение ревью (поддержка русского и английского)
+        approved_keywords = ["approv", "принят", "пройден", "одобрен", "успешн"]
+        rejected_keywords = ["reject", "отклон", "нужн", "доработк", "исправ"]
+
+        review_lower = review_result.lower()
+
+        if any(kw in review_lower for kw in rejected_keywords):
+            return "coder"
+        if any(kw in review_lower for kw in approved_keywords):
             return END
         if iteration >= max_iterations:
             return END

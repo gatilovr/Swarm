@@ -1,7 +1,6 @@
 """Воркер для параллельной обработки задач роем."""
 
 import asyncio
-import copy
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -106,8 +105,17 @@ class SwarmWorker:
 
         # 4. Запуск роя
         try:
-            # Применяем выбранные модели к конфигу (deepcopy для избежания race condition)
-            swarm_config = copy.deepcopy(self.config.swarm)
+            # Создаём новый SwarmConfig из data-полей (без deepcopy LLM-провайдера)
+            from swarm.config import SwarmConfig
+            swarm_config = SwarmConfig(
+                deepseek_api_key=self.config.swarm.deepseek_api_key,
+                architect_model_name=self.config.swarm.architect_model_name,
+                coder_model_name=self.config.swarm.coder_model_name,
+                reviewer_model_name=self.config.swarm.reviewer_model_name,
+                base_url=self.config.swarm.base_url,
+                temperature=self.config.swarm.temperature,
+                max_iterations=self.config.swarm.max_iterations,
+            )
             swarm_config.architect_model_name = model_cfg.architect
             swarm_config.coder_model_name = model_cfg.coder
             if model_cfg.reviewer:

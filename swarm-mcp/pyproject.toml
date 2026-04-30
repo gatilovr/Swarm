@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "swarm-mcp"
-version = "1.0.0"
+version = "2.0.0"
 description = "MCP-сервер для роя AI-агентов (Architect -> Coder -> Reviewer)"
 readme = "README.md"
 license = {text = "MIT"}
@@ -20,6 +20,9 @@ scale = ["swarm-scale"]
 [project.urls]
 Homepage = "https://github.com/your-org/swarm-mcp"
 Repository = "https://github.com/your-org/swarm-mcp"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
 
 [tool.setuptools.packages.find]
 where = ["src"]

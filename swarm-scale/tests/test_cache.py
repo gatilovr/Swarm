@@ -11,22 +11,24 @@ from swarm_scale.config import ScaleConfig
 class TestDiskCache:
     """Тесты DiskCache (L1)."""
 
-    def test_cache_set_get(self):
+    @pytest.mark.asyncio
+    async def test_cache_set_get(self):
         """Запись и чтение из кэша."""
         cache = DiskCache(directory=".test_cache", ttl_hours=24, max_size_gb=1)
         key = "test:key123"
         value = {"plan": "test plan", "code": "print('hello')"}
 
-        cache.set(key, value)
-        result = cache.get(key)
+        await cache.set(key, value)
+        result = await cache.get(key)
 
         assert result == value
         assert result["plan"] == "test plan"
 
-    def test_cache_miss(self):
+    @pytest.mark.asyncio
+    async def test_cache_miss(self):
         """Возврат None для отсутствующего ключа."""
         cache = DiskCache(directory=".test_cache", ttl_hours=24, max_size_gb=1)
-        result = cache.get("nonexistent:key")
+        result = await cache.get("nonexistent:key")
         assert result is None
 
     def test_cache_key_uniqueness(self):

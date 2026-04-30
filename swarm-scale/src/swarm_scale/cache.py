@@ -58,24 +58,24 @@ class DiskCache(CacheLevel):
             self._cache = {}
             self._in_memory = True
 
-    def get(self, key: str) -> Optional[dict]:
-        """Получает результат из кэша."""
+    async def get(self, key: str) -> Optional[dict]:
+        """Асинхронно получает результат из кэша (I/O в thread pool)."""
         try:
             if self._in_memory:
                 return self._cache.get(key)
-            return self._cache.get(key)
+            return await asyncio.to_thread(self._cache.get, key)
         except Exception as e:
             logger.warning(f"DiskCache get error: {e}")
             return None
 
-    def set(self, key: str, value: dict, expire: Optional[int] = None) -> None:
-        """Сохраняет результат в кэш."""
+    async def set(self, key: str, value: dict, expire: Optional[int] = None) -> None:
+        """Асинхронно сохраняет результат в кэш (I/O в thread pool)."""
         try:
             expire = expire or int(self.ttl.total_seconds())
             if self._in_memory:
                 self._cache[key] = value
             else:
-                self._cache.set(key, value, expire=expire)
+                await asyncio.to_thread(self._cache.set, key, value, expire=expire)
         except Exception as e:
             logger.warning(f"DiskCache set error: {e}")
 
@@ -170,7 +170,7 @@ class CacheManager:
 
         # L1: локальный кэш
         start = time.time()
-        result = self.l1.get(key)
+        result = await self.l1.get(key)
         l1_latency = time.time() - start
         self._metrics.record_cache_latency("get", "l1", l1_latency)
         if span is not None:
@@ -238,7 +238,7 @@ class CacheManager:
             span.set_attribute("cache.key", key)
 
         start = time.time()
-        self.l1.set(key, result)
+        await self.l1.set(key, result)
         l1_latency = time.time() - start
         self._metrics.record_cache_latency("set", "l1", l1_latency)
 
